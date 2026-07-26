@@ -49,6 +49,8 @@ All you need is a modern web browser (Chrome, Safari, Firefox, Edge).
 2. Click **"Decrypt & Calibrate Route"**.
 3. View the decrypted target address name, exact coordinates, and timestamp on the retro LCD screen.
 
+<img width="1918" height="916" alt="Screenshot 2026-07-26 100552" src="https://github.com/user-attachments/assets/cd8e5a6d-38fd-4635-8212-29315bf00269" />
+
 ### 2. Inspecting the Target Destination
 * Scroll down to view the **Interactive Location Map View**.
 * Use zoom controls to inspect surrounding roads and landmarks near the pin marker.
@@ -60,6 +62,10 @@ All you need is a modern web browser (Chrome, Safari, Firefox, Edge).
 ### 4. Viewing Trip History
 * Switch to the **Trips** tab in the bottom navigation bar to view previously decrypted location codes.
 * Tap **"Load Route"** to re-inspect a past trip or click the trash icon to clear individual/all logs.
+
+<img width="1917" height="916" alt="Screenshot 2026-07-26 100614" src="https://github.com/user-attachments/assets/dfa9bd21-228e-44c3-96bb-6267bac5d914" />
+
+<img width="1918" height="918" alt="Screenshot 2026-07-26 100625" src="https://github.com/user-attachments/assets/4d411f20-fa47-48aa-9b15-0600532d8d94" />
 
 ---
 
