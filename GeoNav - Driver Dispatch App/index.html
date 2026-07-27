@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GeoNav - Driver & Dispatch Edition</title>
+
+    <link rel="icon" type="image/x-icon" href="favicon.png">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        iosBgLight: '#eef2f7',
+                        iosBgDark: '#080c16',
+                    },
+                    animation: {
+                        'pulse-glow': 'pulseGlow 2s infinite alternate',
+                        'radar-scan': 'radarScan 3s linear infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Leaflet CSS & JS for Route Mapping -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-body: #eef2f7;
+            --glass-bg: rgba(255, 255, 255, 0.72);
+            --glass-border: rgba(255, 255, 255, 0.85);
+            --shadow-light: #ffffff;
+            --shadow-dark: #c1cbd8;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --accent-primary: #10b981;
+            --accent-glow: rgba(16, 185, 129, 0.35);
+            --inset-bg: #e2e8f0;
+            --lcd-bg-top: #dff0e6;
+            --lcd-bg-bottom: #cbe3d5;
+            --lcd-text: #064e3b;
+        }
+
+        .dark {
+            --bg-body: #080c16;
+            --glass-bg: rgba(15, 23, 42, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --shadow-light: rgba(255, 255, 255, 0.04);
+            --shadow-dark: rgba(0, 0, 0, 0.7);
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --accent-primary: #10b981;
+            --accent-glow: rgba(16, 185, 129, 0.45);
+            --inset-bg: #111827;
+            --lcd-bg-top: #062016;
+            --lcd-bg-bottom: #02120c;
+            --lcd-text: #34d399;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+            color: var(--text-main);
+            overflow: hidden;
+            transition: background-color 0.4s ease;
+        }
+
+        /* Ambient Liquid Glow Orbs */
+        .liquid-orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(75px);
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.55;
+            animation: floatOrb 20s infinite alternate ease-in-out;
+        }
+        .orb-1 { top: -8%; right: -5%; width: 420px; height: 420px; background: #34d399; }
+        .orb-2 { bottom: -12%; left: -10%; width: 480px; height: 480px; background: #38bdf8; animation-delay: -7s; }
+        .orb-3 { top: 35%; right: 25%; width: 320px; height: 320px; background: #818cf8; animation-delay: -14s; }
+
+        .dark .orb-1 { background: #065f46; opacity: 0.35; }
+        .dark .orb-2 { background: #075985; opacity: 0.35; }
+        .dark .orb-3 { background: #3730a3; opacity: 0.25; }
+
+        @keyframes floatOrb {
+            0% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(-35px, 40px) scale(1.1); }
+            100% { transform: translate(25px, -35px) scale(0.95); }
+        }
+
+        /* Glassmorphic Shell Card */
+        .ios-glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(28px) saturate(200%);
+            -webkit-backdrop-filter: blur(28px) saturate(200%);
+            border: 1px solid var(--glass-border);
+            box-shadow: 
+                0 25px 50px -12px rgba(0, 0, 0, 0.12),
+                inset 0 1px 2px rgba(255, 255, 255, 0.7);
+            border-radius: 36px;
+            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .dark .ios-glass-card {
+            box-shadow: 
+                0 30px 60px rgba(0, 0, 0, 0.6),
+                inset 0 1px 1px rgba(255, 255, 255, 0.15);
+        }
+
+        /* Tactile Skeuomorphic Button */
+        .skeuo-btn {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(220, 228, 238, 0.85));
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            box-shadow: 
+                5px 5px 14px var(--shadow-dark),
+                -5px -5px 14px var(--shadow-light),
+                inset 1px 1px 2px rgba(255, 255, 255, 0.9);
+            color: var(--text-main);
+            font-weight: 600;
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+
+        .dark .skeuo-btn {
+            background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 
+                4px 4px 12px rgba(0, 0, 0, 0.6),
+                -3px -3px 8px rgba(255, 255, 255, 0.03),
+                inset 1px 1px 1px rgba(255, 255, 255, 0.1);
+        }
+
+        .skeuo-btn:active {
+            box-shadow: 
+                2px 2px 5px var(--shadow-dark),
+                -2px -2px 5px var(--shadow-light),
+                inset 2px 2px 6px rgba(0,0,0,0.18);
+            transform: scale(0.97);
+        }
+
+        .skeuo-btn.emerald-accent {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            box-shadow: 
+                0 10px 24px var(--accent-glow),
+                inset 0 1px 1px rgba(255, 255, 255, 0.5);
+        }
+
+        .skeuo-btn.emerald-accent:active {
+            box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.35);
+        }
+
+        /* Nav App Launch Badges */
+        .nav-app-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .nav-app-card:hover {
+            transform: translateY(-2px) scale(1.02);
+        }
+        .nav-app-card:active {
+            transform: scale(0.96);
+        }
+
+        /* Inset Skeuomorphic Field */
+        .skeuo-input {
+            background: var(--inset-bg);
+            border-radius: 20px;
+            box-shadow: 
+                inset 3px 3px 8px rgba(0, 0, 0, 0.14),
+                inset -3px -3px 8px rgba(255, 255, 255, 0.7);
+            padding: 14px 18px;
+            transition: all 0.3s ease;
+        }
+
+        .dark .skeuo-input {
+            box-shadow: 
+                inset 4px 4px 10px rgba(0, 0, 0, 0.65),
+                inset -2px -2px 6px rgba(255, 255, 255, 0.03);
+        }
+
+        .skeuo-input input {
+            background: transparent;
+            border: none;
+            outline: none;
+            width: 100%;
+            color: var(--text-main);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            letter-spacing: 0.05em;
+            user-select: text;
+        }
+
+        /* Retro LCD Cipher Screen */
+        .lcd-screen {
+            background: linear-gradient(180deg, var(--lcd-bg-top), var(--lcd-bg-bottom));
+            color: var(--lcd-text);
+            box-shadow: 
+                inset 4px 4px 10px rgba(0, 0, 0, 0.25),
+                inset -3px -3px 6px rgba(255, 255, 255, 0.6),
+                0 3px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            border-radius: 20px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* View Switching Logic */
+        .view-pane {
+            display: none;
+            opacity: 0;
+            transform: translateY(12px) scale(0.98);
+            transition: opacity 0.28s ease-out, transform 0.28s ease-out;
+        }
+
+        .view-pane.active {
+            display: flex;
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        /* Bottom Nav Active State */
+        .nav-item {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        .nav-item.active-nav {
+            color: var(--accent-primary);
+        }
+        .nav-item.active-nav::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 18px;
+            height: 4px;
+            background: var(--accent-primary);
+            border-radius: 4px;
+            box-shadow: 0 2px 10px var(--accent-glow);
+        }
+
+        /* Route Map Customization */
+        #route-map-container .leaflet-control-zoom {
+            border: none !important;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.18) !important;
+            border-radius: 16px !important;
+            overflow: hidden;
+        }
+
+        /* Pulse Radar Wave Effect */
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+            100% { box-shadow: 0 0 0 16px rgba(16, 185, 129, 0); }
+        }
+
+        .pulsing-dot {
+            animation: pulseGlow 1.8s infinite;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(140, 140, 140, 0.3);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-3 sm:p-6 select-none">
+
+    <!-- Ambient Liquid Orbs -->
+    <div class="liquid-orb orb-1"></div>
+    <div class="liquid-orb orb-2"></div>
+    <div class="liquid-orb orb-3"></div>
+
+    <main class="ios-glass-card w-full max-w-md h-[860px] max-h-[94vh] flex flex-col relative overflow-hidden z-10">
+        
+        <!-- App Header Bar -->
+        <header class="px-6 py-4 border-b border-white/20 dark:border-white/10 flex justify-between items-center relative z-20">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    <i class="ph ph-compass-rose text-white text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-extrabold tracking-tight text-slate-800 dark:text-slate-100 leading-tight">GeoNav</h1>
+                    <p class="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block pulsing-dot"></span> Driver Dispatch
+                    </p>
+                </div>
+            </div>
+
+            <!-- Header Quick Controls -->
+            <div class="flex items-center gap-2">
+                <button onclick="toggleTheme()" class="w-10 h-10 skeuo-btn rounded-2xl flex items-center justify-center text-slate-600 dark:text-slate-300">
+                    <i id="theme-icon" class="ph ph-moon text-xl"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic Body Content -->
+        <div class="flex-1 relative overflow-hidden flex flex-col">
+
+            <!-- ================= VIEW 1: DECRYPT & NAVIGATE ================= -->
+            <section id="view-navigate" class="view-pane active flex-1 p-5 flex-col gap-4 overflow-y-auto">
+                
+                <!-- Cipher Input & Auto-Paste Section -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center px-1">
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Received GeoCrypt Code</span>
+                        <button onclick="autoPasteFromClipboard()" class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 hover:underline">
+                            <i class="ph ph-clipboard-text"></i> Paste Clipboard
+                        </button>
+                    </div>
+
+                    <div class="skeuo-input flex items-center gap-3">
+                        <i class="ph ph-keyhole text-emerald-500 text-xl"></i>
+                        <input type="text" id="cipher-input" placeholder="e.g. GEO-X9B2-41A2-K9" oninput="handleCodeInputChange(this.value)">
+                        <button onclick="clearCipherInput()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                            <i class="ph ph-x-circle text-lg"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Decrypt Action Button -->
+                <button onclick="decryptAndShowLocation()" class="skeuo-btn emerald-accent w-full py-3.5 text-base font-bold flex items-center justify-center gap-2">
+                    <i class="ph ph-lightning text-xl"></i> Decrypt & Map Location
+                </button>
+
+                <!-- Decrypted Result & Route Summary Card (Hidden until code decrypted) -->
+                <div id="route-details-card" class="hidden flex-col gap-3.5 animate-[fadeIn_0.3s_ease-out]">
+                    
+                    <!-- Retro LCD Decoded Info Box -->
+                    <div class="lcd-screen p-4 flex flex-col gap-2">
+                        <div class="flex justify-between items-center border-b border-emerald-900/10 dark:border-emerald-400/20 pb-2">
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-emerald-800 dark:text-emerald-300">Target Location Unlocked</span>
+                            <span id="decrypt-timestamp" class="text-[10px] opacity-75 font-mono">Just Now</span>
+                        </div>
+                        <div>
+                            <p id="decrypted-address" class="font-sans font-bold text-base leading-snug">Secret Rendezvous Location</p>
+                            <p id="decrypted-coords" class="text-xs font-mono opacity-80 mt-1">Lat: 0.000000 | Lng: 0.000000</p>
+                        </div>
+                    </div>
+
+                    <!-- Direct Navigation App Launcher Grid -->
+                    <div>
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1 mb-2 block">Choose Navigational Map App</span>
+                        
+                        <div class="grid grid-cols-3 gap-2.5">
+                            <!-- Google Maps Button -->
+                            <button onclick="launchExternalNav('google')" class="nav-app-card p-3 flex flex-col items-center justify-center gap-1.5 text-center group">
+                                <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center text-xl shadow-md group-hover:scale-105 transition-transform">
+                                    <i class="ph ph-google-logo"></i>
+                                </div>
+                                <span class="text-xs font-bold text-slate-700 dark:text-slate-200">Google Maps</span>
+                                <span class="text-[9px] text-slate-400">Direct Route</span>
+                            </button>
+
+                            <!-- Apple Maps Button -->
+                            <button onclick="launchExternalNav('apple')" class="nav-app-card p-3 flex flex-col items-center justify-center gap-1.5 text-center group">
+                                <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-slate-700 to-slate-900 dark:from-slate-100 dark:to-slate-300 text-white dark:text-slate-900 flex items-center justify-center text-xl shadow-md group-hover:scale-105 transition-transform">
+                                    <i class="ph ph-apple-logo"></i>
+                                </div>
+                                <span class="text-xs font-bold text-slate-700 dark:text-slate-200">Apple Maps</span>
+                                <span class="text-[9px] text-slate-400">Turn-by-Turn</span>
+                            </button>
+
+                            <!-- Waze Button -->
+                            <button onclick="launchExternalNav('waze')" class="nav-app-card p-3 flex flex-col items-center justify-center gap-1.5 text-center group">
+                                <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-400 to-blue-500 text-white flex items-center justify-center text-xl shadow-md group-hover:scale-105 transition-transform">
+                                    <i class="ph ph-navigation-arrow"></i>
+                                </div>
+                                <span class="text-xs font-bold text-slate-700 dark:text-slate-200">Waze App</span>
+                                <span class="text-[9px] text-slate-400">Traffic Avoid</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Fetched Location Map View -->
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between items-center px-1">
+                            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Fetched Location Map View</span>
+                            <span id="target-coords-badge" class="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">--.------, --.------</span>
+                        </div>
+                        <div id="route-map-container" class="w-full h-52 rounded-2xl border border-white/40 dark:border-white/10 shadow-inner overflow-hidden relative"></div>
+                    </div>
+
+                </div>
+
+            </section>
+
+            <!-- ================= VIEW 2: DISPATCH HISTORY ================= -->
+            <section id="view-history" class="view-pane flex-1 p-5 flex-col gap-4 overflow-y-auto">
+                <div class="flex justify-between items-center">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Dispatch Trip Log</span>
+                    <span id="history-count-badge" class="text-xs font-bold text-slate-500 dark:text-slate-400 bg-black/5 dark:bg-white/10 px-2.5 py-1 rounded-full">0 Trips</span>
+                </div>
+
+                <!-- History Items List Container -->
+                <div id="history-list" class="flex flex-col gap-3 pb-12">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </section>
+
+            <!-- ================= VIEW 3: PREFERENCES ================= -->
+            <section id="view-preferences" class="view-pane flex-1 p-5 flex-col gap-5 overflow-y-auto">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Navigation Settings</span>
+
+                <div class="space-y-3">
+                    <div class="p-4 rounded-2xl bg-white/40 dark:bg-white/5 border border-white/60 dark:border-white/10 flex justify-between items-center shadow-sm">
+                        <div>
+                            <h3 class="font-bold text-sm text-slate-800 dark:text-slate-200">Default Navigation App</h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Auto-launch preferred map service</p>
+                        </div>
+                        <select id="pref-default-app" onchange="savePreferences()" class="bg-white/80 dark:bg-slate-800 text-xs font-bold px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 outline-none">
+                            <option value="ask">Always Ask</option>
+                            <option value="google">Google Maps</option>
+                            <option value="apple">Apple Maps</option>
+                            <option value="waze">Waze</option>
+                        </select>
+                    </div>
+
+                    <div class="p-4 rounded-2xl bg-white/40 dark:bg-white/5 border border-white/60 dark:border-white/10 flex justify-between items-center shadow-sm">
+                        <div>
+                            <h3 class="font-bold text-sm text-slate-800 dark:text-slate-200">Dark Theme</h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Night mode optimized map aesthetics</p>
+                        </div>
+                        <input type="checkbox" id="pref-darkmode" onchange="toggleTheme()" class="w-5 h-5 accent-emerald-500 cursor-pointer">
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-200 dark:border-slate-800">
+                    <button onclick="clearTripHistory()" class="skeuo-btn w-full py-3.5 text-red-500 dark:text-red-400 font-bold text-xs flex items-center justify-center gap-2">
+                        <i class="ph ph-trash text-base"></i> Clear Dispatch History Log
+                    </button>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- iOS Bottom Navigation Bar -->
+        <nav class="p-3 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border-t border-white/30 dark:border-white/10 flex justify-around items-center relative z-20 pb-5">
+            <button onclick="switchView('navigate')" id="nav-navigate" class="nav-item active-nav px-5 py-1.5 flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400">
+                <i class="ph ph-navigation-arrow text-2xl"></i>
+                <span class="text-[10px] font-extrabold tracking-wider uppercase">Navigate</span>
+            </button>
+
+            <button onclick="switchView('history')" id="nav-history" class="nav-item px-5 py-1.5 flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400">
+                <i class="ph ph-clock-counter-clockwise text-2xl"></i>
+                <span class="text-[10px] font-extrabold tracking-wider uppercase">Trips</span>
+            </button>
+
+            <button onclick="switchView('preferences')" id="nav-preferences" class="nav-item px-5 py-1.5 flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400">
+                <i class="ph ph-gear text-2xl"></i>
+                <span class="text-[10px] font-extrabold tracking-wider uppercase">Settings</span>
+            </button>
+        </nav>
+
+        <!-- Floating Toast Notification System -->
+        <div id="toast-container" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    </main>
+
+    <script>
+        // State Management
+        let currentDecryptedTarget = null;
+        let routeMap = null;
+        let targetMarker = null;
+        let dispatchHistory = [];
+
+        // DOM Element References
+        const views = {
+            navigate: document.getElementById('view-navigate'),
+            history: document.getElementById('view-history'),
+            preferences: document.getElementById('view-preferences')
+        };
+
+        const navs = {
+            navigate: document.getElementById('nav-navigate'),
+            history: document.getElementById('nav-history'),
+            preferences: document.getElementById('nav-preferences')
+        };
+
+        const cipherInput = document.getElementById('cipher-input');
+        const routeDetailsCard = document.getElementById('route-details-card');
+        const decryptedAddress = document.getElementById('decrypted-address');
+        const decryptedCoords = document.getElementById('decrypted-coords');
+        const historyList = document.getElementById('history-list');
+        const historyCountBadge = document.getElementById('history-count-badge');
+
+        function switchView(viewName) {
+            Object.keys(views).forEach(key => {
+                if (views[key]) {
+                    views[key].classList.remove('active');
+                    views[key].style.display = 'none';
+                }
+            });
+
+            Object.keys(navs).forEach(key => {
+                if (navs[key]) {
+                    navs[key].classList.remove('active-nav');
+                }
+            });
+
+            const targetView = views[viewName];
+            const targetNav = navs[viewName];
+
+            if (targetView) {
+                targetView.style.display = 'flex';
+                void targetView.offsetWidth; // Force layout recalculation
+                targetView.classList.add('active');
+            }
+
+            if (targetNav) {
+                targetNav.classList.add('active-nav');
+            }
+
+            if (viewName === 'history') {
+                renderDispatchHistory();
+            }
+
+            if (viewName === 'navigate' && currentDecryptedTarget) {
+                setTimeout(() => {
+                    if (routeMap) routeMap.invalidateSize();
+                }, 200);
+            }
+        }
+
+        function toggleTheme() {
+            const htmlEl = document.documentElement;
+            const themeIcon = document.getElementById('theme-icon');
+            const prefDarkMode = document.getElementById('pref-darkmode');
+
+            if (htmlEl.classList.contains('dark')) {
+                htmlEl.classList.remove('dark');
+                if (themeIcon) themeIcon.className = "ph ph-moon text-xl";
+                if (prefDarkMode) prefDarkMode.checked = false;
+            } else {
+                htmlEl.classList.add('dark');
+                if (themeIcon) themeIcon.className = "ph ph-sun text-xl text-amber-400";
+                if (prefDarkMode) prefDarkMode.checked = true;
+            }
+        }
+
+        function decryptGeoCryptCode(cipherText) {
+            try {
+                let cleanCipher = cipherText.trim();
+                
+                // Strip "GEO-" prefix if present
+                if (cleanCipher.startsWith('GEO-')) {
+                    cleanCipher = cleanCipher.replace(/^GEO-/, '').replace(/-/g, '');
+                }
+
+                // Reconstruct cipher payload
+                let restored = cleanCipher.split('').map((c, i) => {
+                    return String.fromCharCode(c.charCodeAt(0) - (i % 2 === 0 ? 1 : -1));
+                }).reverse().join('');
+
+                const pad = restored.length % 4 === 0 ? '' : '='.repeat(4 - (restored.length % 4));
+                const rawPayload = decodeURIComponent(escape(atob(restored + pad)));
+                const parts = rawPayload.split('|');
+
+                if (parts.length >= 2 && !isNaN(parseFloat(parts[0])) && !isNaN(parseFloat(parts[1]))) {
+                    return {
+                        lat: parseFloat(parts[0]),
+                        lng: parseFloat(parts[1]),
+                        address: parts[2] || 'Encrypted Delivery Destination',
+                        timestamp: parts[3] ? new Date(parts[3]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently Encrypted'
+                    };
+                }
+            } catch (e) {
+                // Fallback attempt: check raw coordinate string input
+                const rawCoords = cipherText.split(',');
+                if (rawCoords.length === 2 && !isNaN(parseFloat(rawCoords[0])) && !isNaN(parseFloat(rawCoords[1]))) {
+                    return {
+                        lat: parseFloat(rawCoords[0]),
+                        lng: parseFloat(rawCoords[1]),
+                        address: 'Raw Coordinates Input',
+                        timestamp: 'Manual Input'
+                    };
+                }
+            }
+            return null;
+        }
+
+        function handleCodeInputChange(val) {
+            if (!val.trim()) {
+                routeDetailsCard.classList.add('hidden');
+                routeDetailsCard.classList.remove('flex');
+            }
+        }
+
+        function clearCipherInput() {
+            cipherInput.value = '';
+            routeDetailsCard.classList.add('hidden');
+            routeDetailsCard.classList.remove('flex');
+        }
+
+        async function autoPasteFromClipboard() {
+            try {
+                if (navigator.clipboard && navigator.clipboard.readText) {
+                    const text = await navigator.clipboard.readText();
+                    if (text) {
+                        cipherInput.value = text.trim();
+                        showToast("Code pasted from clipboard!", "success");
+                        decryptAndShowLocation();
+                    }
+                } else {
+                    showToast("Please paste code manually into the input.", "info");
+                }
+            } catch (err) {
+                showToast("Paste permission denied.", "error");
+            }
+        }
+
+        function decryptAndShowLocation() {
+            const rawVal = cipherInput.value.trim();
+            if (!rawVal) {
+                showToast("Please enter or paste a GeoCrypt code!", "error");
+                return;
+            }
+
+            const decoded = decryptGeoCryptCode(rawVal);
+            if (!decoded) {
+                showToast("Invalid GeoCrypt Code format!", "error");
+                return;
+            }
+
+            currentDecryptedTarget = decoded;
+
+            // Update UI Details
+            decryptedAddress.innerText = decoded.address;
+            decryptedCoords.innerText = `Lat: ${decoded.lat.toFixed(6)} | Lng: ${decoded.lng.toFixed(6)}`;
+            document.getElementById('decrypt-timestamp').innerText = decoded.timestamp;
+
+            routeDetailsCard.classList.remove('hidden');
+            routeDetailsCard.classList.add('flex');
+
+            // Save to Dispatch History
+            addToHistory(rawVal, decoded);
+
+            // Initialize or update fetched location map view
+            initializeLocationMap({ lat: decoded.lat, lng: decoded.lng });
+
+            showToast("Location map loaded!", "success");
+
+            // Check auto-launch preference
+            const defaultApp = document.getElementById('pref-default-app').value;
+            if (defaultApp !== 'ask') {
+                setTimeout(() => launchExternalNav(defaultApp), 800);
+            }
+        }
+
+        function initializeLocationMap(targetPos) {
+            setTimeout(() => {
+                const mapEl = document.getElementById('route-map-container');
+                if (!mapEl) return;
+
+                const coordsBadge = document.getElementById('target-coords-badge');
+                if (coordsBadge) {
+                    coordsBadge.innerText = `${targetPos.lat.toFixed(5)}, ${targetPos.lng.toFixed(5)}`;
+                }
+
+                if (!routeMap) {
+                    routeMap = L.map('route-map-container', { zoomControl: false }).setView([targetPos.lat, targetPos.lng], 14);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '© OpenStreetMap'
+                    }).addTo(routeMap);
+
+                    L.control.zoom({ position: 'topright' }).addTo(routeMap);
+                } else {
+                    routeMap.setView([targetPos.lat, targetPos.lng], 14);
+                }
+
+                // Force map size recalculation
+                routeMap.invalidateSize();
+
+                // Clear existing map layers
+                if (targetMarker) routeMap.removeLayer(targetMarker);
+
+                // Destination Icon Pin
+                const targetIcon = L.divIcon({
+                    className: 'custom-target-icon',
+                    html: `<div class="w-9 h-9 rounded-full bg-emerald-500 border-2 border-white shadow-lg flex items-center justify-center text-white text-lg"><i class="ph ph-map-pin"></i></div>`,
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 36]
+                });
+
+                targetMarker = L.marker([targetPos.lat, targetPos.lng], { icon: targetIcon }).addTo(routeMap);
+
+            }, 150);
+        }
+
+        function launchExternalNav(appType) {
+            if (!currentDecryptedTarget) {
+                showToast("Please decrypt a location first!", "error");
+                return;
+            }
+
+            const { lat, lng } = currentDecryptedTarget;
+            let navUrl = "";
+
+            switch (appType) {
+                case 'google':
+                    navUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+                    break;
+                case 'apple':
+                    navUrl = `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`;
+                    break;
+                case 'waze':
+                    navUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+                    break;
+                default:
+                    navUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+            }
+
+            showToast(`Opening destination in ${appType.toUpperCase()}...`, "info");
+            window.open(navUrl, '_blank');
+        }
+
+        function addToHistory(code, decodedData) {
+            const newItem = {
+                id: Date.now().toString(),
+                code: code,
+                address: decodedData.address,
+                lat: decodedData.lat,
+                lng: decodedData.lng,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + new Date().toLocaleDateString()
+            };
+
+            dispatchHistory.unshift(newItem);
+            saveHistoryToStorage();
+        }
+
+        function renderDispatchHistory() {
+            historyList.innerHTML = '';
+            historyCountBadge.innerText = `${dispatchHistory.length} Trips`;
+
+            if (dispatchHistory.length === 0) {
+                historyList.innerHTML = `
+                    <div class="text-center py-12 opacity-60 flex flex-col items-center gap-2">
+                        <i class="ph ph-navigation-arrow-slash text-4xl text-slate-400"></i>
+                        <p class="text-sm font-semibold">No dispatch history</p>
+                        <p class="text-xs text-slate-400">Decrypted navigation trips will appear here.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            dispatchHistory.forEach(item => {
+                const card = document.createElement('div');
+                card.className = "p-4 rounded-2xl bg-white/40 dark:bg-white/5 border border-white/60 dark:border-white/10 shadow-sm flex flex-col gap-2.5";
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase">
+                        <span>${item.time}</span>
+                        <button onclick="deleteHistoryItem('${item.id}')" class="text-red-400 hover:text-red-500">
+                            <i class="ph ph-trash text-sm"></i>
+                        </button>
+                    </div>
+                    <div class="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                        ${item.code}
+                    </div>
+                    <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">${item.address}</p>
+                    <div class="grid grid-cols-2 gap-2 mt-1">
+                        <button onclick="relaunchTrip('${item.code}')" class="skeuo-btn py-2 text-xs flex items-center justify-center gap-1">
+                            <i class="ph ph-arrow-clockwise"></i> Load Route
+                        </button>
+                        <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}', '_blank')" class="skeuo-btn py-2 text-xs flex items-center justify-center gap-1 text-emerald-600 dark:text-emerald-400">
+                            <i class="ph ph-navigation-arrow"></i> Google Maps
+                        </button>
+                    </div>
+                `;
+                historyList.appendChild(card);
+            });
+        }
+
+        function relaunchTrip(code) {
+            cipherInput.value = code;
+            switchView('navigate');
+            decryptAndShowLocation();
+        }
+
+        function deleteHistoryItem(id) {
+            dispatchHistory = dispatchHistory.filter(i => i.id !== id);
+            saveHistoryToStorage();
+            renderDispatchHistory();
+            showToast("Trip log removed", "info");
+        }
+
+        function clearTripHistory() {
+            dispatchHistory = [];
+            saveHistoryToStorage();
+            renderDispatchHistory();
+            showToast("Dispatch log cleared!", "success");
+        }
+
+        function saveHistoryToStorage() {
+            localStorage.setItem('geonav_dispatch_history', JSON.stringify(dispatchHistory));
+        }
+
+        function loadHistoryFromStorage() {
+            try {
+                const stored = localStorage.getItem('geonav_dispatch_history');
+                if (stored) dispatchHistory = JSON.parse(stored);
+            } catch (e) {}
+        }
+
+        function savePreferences() {
+            const prefs = {
+                defaultApp: document.getElementById('pref-default-app').value
+            };
+            localStorage.setItem('geonav_prefs', JSON.stringify(prefs));
+            showToast("Preferences saved", "success");
+        }
+
+        function loadPreferences() {
+            try {
+                const stored = localStorage.getItem('geonav_prefs');
+                if (stored) {
+                    const prefs = JSON.parse(stored);
+                    if (prefs.defaultApp) document.getElementById('pref-default-app').value = prefs.defaultApp;
+                }
+            } catch (e) {}
+        }
+
+        function showToast(message, type = "info") {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            
+            let icon = 'ph-info';
+            if (type === 'success') icon = 'ph-check-circle text-emerald-400';
+            if (type === 'error') icon = 'ph-warning-circle text-rose-400';
+
+            toast.className = 'px-4 py-2.5 rounded-full bg-slate-900/90 dark:bg-white/90 text-white dark:text-slate-900 text-xs font-semibold shadow-2xl backdrop-blur-md flex items-center gap-2 transition-all duration-300 transform translate-y-4 opacity-0 pointer-events-auto';
+            toast.innerHTML = `<i class="ph ${icon} text-base"></i> <span>${message}</span>`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-4', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 2600);
+        }
+
+        // Initialize application on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadHistoryFromStorage();
+            loadPreferences();
+        });
+    </script>
+</body>
+</html>
